@@ -1,31 +1,66 @@
+require('dotenv').config({ quiet: true });
 
-// npm install para descargar los paquetes...
-
-// libreriuas
+var path = require('path');
+var express = require('express');
 var validation = require('./libs/unalib');
-var app = require('express')();
+var authGate = require('./server/auth');
+
+var app = express();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var port = process.env.PORT || 3000;
 
-// root: presentar html
-app.get('/', function(req, res){
-  res.sendFile(__dirname + '/index.html');
+app.get('/', function (req, res) {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// escuchar una conexion por socket
-io.on('connection', function(socket){
-  // si se escucha "chat message"
-  socket.on('Evento-Mensaje-Server', function(msg){
+app.get('/auth/config', function (req, res) {
+  var settings = authGate.authSettings();
+  if (!settings) {
+    res.json({ enabled: false });
+    return;
+  }
+  res.json({
+    enabled: true,
+    domain: settings.domain,
+    clientId: settings.clientId
+  });
+});
 
-    msg =  validation.validateMessage(msg);
-    // volvemos a emitir el mismo mensaje
+app.get('/vendor/auth0-spa-js.js', function (req, res) {
+  res.sendFile(path.join(
+    __dirname,
+    'node_modules',
+    '@auth0',
+    'auth0-spa-js',
+    'dist',
+    'auth0-spa-js.production.js'
+  ));
+});
+
+io.use(function (socket, next) {
+  if (!authGate.authSettings()) {
+    next();
+    return;
+  }
+  authGate.authorizeSocket(socket, next);
+});
+
+io.on('connection', function (socket) {
+  socket.on('Evento-Mensaje-Server', function (msg) {
+    if (socket.data && socket.data.user && socket.data.user.name) {
+      msg = authGate.stampSender(msg, socket.data.user.name);
+    }
+    msg = validation.validateMessage(msg);
     io.emit('Evento-Mensaje-Server', msg);
   });
 });
 
 if (require.main === module) {
-  http.listen(port, function(){
+  if (authGate.authSettings() && !process.env.AUTH0_CLIENT_SECRET) {
+    console.warn('AUTH0_CLIENT_SECRET is empty. SPA login does not send it.');
+  }
+  http.listen(port, function () {
     console.log('listening on *:' + port);
   });
 }

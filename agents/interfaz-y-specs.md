@@ -1,6 +1,6 @@
 # Interfaz y specs
 
-**TLDR:** La página está en `index.html` y el spec vigente en `openspec/specs/chat-interface/spec.md`. El botón sigue diciendo `Send`.
+**TLDR:** La página está en `index.html` y el spec vigente en `openspec/specs/chat-interface/spec.md`. El botón sigue diciendo `Send`. El login de Auth0 solo aparece si `/auth/config` dice `enabled`.
 
 La interfaz vive en `index.html`. El transcript scrollea solo; el compositor queda fijo debajo. Las etiquetas son `Nombre` y `Mensaje`; el botón sigue diciendo `Send`.
 

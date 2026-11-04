@@ -59,6 +59,16 @@ describe('Chat server', function () {
     server.close(done);
   });
 
+  describe('when auth is not configured', function () {
+    it('should report that login is disabled', async function () {
+      var response = await fetch('http://127.0.0.1:' + port + '/auth/config');
+      var body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ enabled: false });
+    });
+  });
+
   describe('when a visitor requests the home page', function () {
     it('should return the chat page', async function () {
       var response = await fetch('http://127.0.0.1:' + port + '/');

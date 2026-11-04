@@ -161,6 +161,30 @@
 
       button:hover { background: #ffd56a; }
 
+      #login-gate {
+        margin-top: 1rem;
+        max-width: 28rem;
+      }
+
+      #login-error {
+        margin: 0 0 0.7rem;
+        color: var(--clay);
+      }
+
+      #session-bar {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        margin-top: 0.8rem;
+      }
+
+      form[hidden],
+      #login-gate[hidden],
+      #session-bar[hidden],
+      #login-error[hidden] {
+        display: none !important;
+      }
+
       :focus-visible {
         outline: 3px solid var(--clay);
         outline-offset: 2px;
@@ -188,12 +212,20 @@
     <header>
       <h1>Chat Socket.IO UNA</h1>
       <p>Messages are shared live with everyone in this room.</p>
+      <section id="login-gate" hidden>
+        <p id="login-error" hidden></p>
+        <button type="button" id="login-button">Iniciar sesión</button>
+      </section>
+      <p id="session-bar" hidden>
+        <span id="session-name"></span>
+        <button type="button" id="logout-button">Cerrar sesión</button>
+      </p>
     </header>
     <main id="transcript">
       <p id="empty-state"><strong>The room is empty.</strong> Send the first message.</p>
       <ul id="messages"></ul>
     </main>
-    <form action="">
+    <form id="composer" action="">
       <div class="field field-name">
         <label for="nombre">Nombre</label>
         <input id="nombre" autocomplete="off" placeholder="Username"/>
@@ -204,6 +236,7 @@
       </div>
       <button type="submit">Send</button>
     </form>
+    <script src="/vendor/auth0-spa-js.js"></script>
     <script src="https://cdn.socket.io/4.8.4/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
     <script>
@@ -220,10 +253,10 @@
         return color;
      }
 
-      $(function () {
-        var socket = io();
+    function startChat(token) {
+        var socket = token ? io({ auth: { token: token } }) : io();
 
-        $('form').submit(function(){
+        $('form').off('submit').on('submit', function () {
             var nombreTxt = $('#nombre').val() || "Anomimo";
             var mensajeTxt = $('#m').val();
 
@@ -237,7 +270,11 @@
             return false;
         });
 
-        socket.on('Evento-Mensaje-Server', function(msg){
+        socket.on('connect_error', function () {
+            $('#login-error').prop('hidden', false).text('No se pudo conectar al chat. Inicia sesión de nuevo.');
+        });
+
+        socket.on('Evento-Mensaje-Server', function (msg) {
             var msgJson = JSON.parse(msg);
             var mensajeDisplay = "<b style='color:"+ msgJson.color +"'>" + msgJson.nombre + "</b>: " + msgJson.mensaje;
             $('#empty-state').attr('hidden', true);
@@ -245,8 +282,100 @@
             var transcript = document.getElementById('transcript');
             transcript.scrollTop = transcript.scrollHeight;
         });
+    }
 
-      });
+    function showLogin(message) {
+        $('#composer').prop('hidden', true);
+        $('#session-bar').prop('hidden', true);
+        $('#login-gate').prop('hidden', false);
+        if (message) {
+            $('#login-error').prop('hidden', false).text(message);
+        }
+    }
+
+    function loginErrorFromParams(params) {
+        var code = params.get('error') || '';
+        if (!code) return '';
+        if (code === 'access_denied') {
+            return 'Cancelaste el inicio de sesión. Puedes intentarlo de nuevo.';
+        }
+        var detail = params.get('error_description') || '';
+        return detail
+            ? 'No se pudo iniciar sesión. ' + detail
+            : 'No se pudo iniciar sesión. Inténtalo de nuevo.';
+    }
+
+    function bindLogin(client) {
+        $('#login-button').off('click').on('click', function () {
+            client.loginWithRedirect();
+        });
+    }
+
+    $(function () {
+        fetch('/auth/config').then(function (response) {
+            return response.json();
+        }).then(function (config) {
+            if (!config || !config.enabled) {
+                startChat();
+                return;
+            }
+            if (!window.auth0 || !window.auth0.createAuth0Client) {
+                showLogin('No se pudo cargar el inicio de sesión. Recarga la página.');
+                return;
+            }
+
+            var params = new URLSearchParams(window.location.search);
+            var redirectError = loginErrorFromParams(params);
+
+            return window.auth0.createAuth0Client({
+                domain: config.domain,
+                clientId: config.clientId,
+                cacheLocation: 'localstorage',
+                authorizationParams: { redirect_uri: window.location.origin }
+            }).then(function (client) {
+                var handled = Promise.resolve();
+                if (params.has('code') && params.has('state')) {
+                    handled = client.handleRedirectCallback().then(function () {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    });
+                }
+                return handled.then(function () {
+                    return client.isAuthenticated();
+                }).then(function (isAuthenticated) {
+                    if (!isAuthenticated) {
+                        showLogin(redirectError);
+                        bindLogin(client);
+                        return;
+                    }
+                    return client.getUser().then(function (user) {
+                        return client.getIdTokenClaims().then(function (claims) {
+                            var label = (user && (user.name || user.email)) || 'Usuario';
+                            $('#session-name').text('Sesión de ' + label);
+                            $('#nombre').val(label).prop('readonly', true);
+                            $('#session-bar').prop('hidden', false);
+                            $('#login-gate').prop('hidden', true);
+                            $('#logout-button').on('click', function () {
+                                client.logout({ logoutParams: { returnTo: window.location.origin } });
+                            });
+                            if (!claims || !claims.__raw) {
+                                showLogin('No se pudo leer la sesión. Inicia sesión de nuevo.');
+                                bindLogin(client);
+                                return;
+                            }
+                            startChat(claims.__raw);
+                        });
+                    });
+                });
+            }).catch(function (error) {
+                var detail = error && (error.error_description || error.message);
+                showLogin(detail
+                    ? 'No se pudo iniciar sesión. ' + detail
+                    : 'No se pudo iniciar sesión. Inténtalo de nuevo.');
+            });
+        }).catch(function () {
+            showLogin('No se pudo comprobar la sesión. Recarga la página.');
+        });
+    });
     </script>
   </body>
 </html>
