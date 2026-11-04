@@ -27,6 +27,10 @@ app.get('/auth/config', function (req, res) {
   });
 });
 
+app.get('/profile.js', function (req, res) {
+  res.sendFile(path.join(__dirname, 'libs', 'profile.js'));
+});
+
 app.get('/vendor/auth0-spa-js.js', function (req, res) {
   res.sendFile(path.join(
     __dirname,

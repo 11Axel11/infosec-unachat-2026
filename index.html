@@ -236,16 +236,46 @@
         align-items: center;
         max-width: 100%;
         margin: 0;
-        padding: 0.4rem 0.4rem 0.4rem 0.9rem;
+        padding: 0.4rem 0.4rem 0.4rem 0.55rem;
         background: var(--paper-raised);
         border-radius: 0.45rem;
         box-shadow: 0 8px 18px rgba(36, 28, 20, 0.1);
+      }
+
+      #session-identity {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        min-width: 0;
+      }
+
+      #session-details {
+        display: grid;
+        min-width: 0;
+        line-height: 1.2;
+      }
+
+      #session-photo {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 50%;
+        object-fit: cover;
+        flex: 0 0 auto;
+        background: var(--line);
       }
 
       #session-name {
         margin: 0;
         color: var(--ink);
         font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+
+      #session-email {
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 0.85rem;
+        font-weight: 400;
         overflow-wrap: anywhere;
       }
 
@@ -280,7 +310,9 @@
       form[hidden],
       #login-gate[hidden],
       #session-bar[hidden],
-      #login-error[hidden] {
+      #login-error[hidden],
+      #session-photo[hidden],
+      #session-email[hidden] {
         display: none !important;
       }
 
@@ -324,7 +356,13 @@
         <p>Messages are shared live with everyone in this room.</p>
       </div>
       <div id="session-bar" hidden>
-        <span id="session-name"></span>
+        <div id="session-identity">
+          <img id="session-photo" alt="" width="40" height="40" hidden>
+          <div id="session-details">
+            <span id="session-name"></span>
+            <span id="session-email" hidden></span>
+          </div>
+        </div>
         <button type="button" id="logout-button">
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
             <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M6.5 3.25H3.75v9.5H6.5M6.75 8h6M10.5 5.25 13.25 8 10.5 10.75"/>
@@ -354,6 +392,7 @@
       </div>
       <button type="submit">Send</button>
     </form>
+    <script src="/profile.js"></script>
     <script src="/vendor/auth0-spa-js.js"></script>
     <script src="https://cdn.socket.io/4.8.4/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
@@ -402,9 +441,56 @@
         });
     }
 
+    function clearSessionIdentity() {
+        $('#session-name').text('');
+        $('#session-email').prop('hidden', true).text('');
+        var photo = document.getElementById('session-photo');
+        photo.hidden = true;
+        photo.removeAttribute('src');
+        photo.alt = '';
+    }
+
+    function showSessionIdentity(user) {
+        var name = user && typeof user.name === 'string' ? user.name.trim() : '';
+        var email = user && typeof user.email === 'string' ? user.email.trim() : '';
+        var label = name || email || 'Usuario';
+        $('#session-name').text(label);
+        if (name && email) {
+            $('#session-email').prop('hidden', false).text(email);
+        } else {
+            $('#session-email').prop('hidden', true).text('');
+        }
+
+        var picture = window.chatProfile
+            ? window.chatProfile.googleProfilePicture(user && user.picture)
+            : '';
+        var photo = document.getElementById('session-photo');
+        photo.onload = null;
+        photo.onerror = null;
+        if (!picture) {
+            photo.hidden = true;
+            photo.removeAttribute('src');
+            photo.alt = '';
+            return label;
+        }
+
+        photo.alt = 'Foto de ' + label;
+        photo.hidden = true;
+        photo.onload = function () {
+            photo.hidden = false;
+        };
+        photo.onerror = function () {
+            photo.hidden = true;
+            photo.removeAttribute('src');
+        };
+        photo.src = picture;
+        return label;
+    }
+
     function showLogin(message) {
         $('#composer').prop('hidden', true);
         $('#session-bar').prop('hidden', true);
+        clearSessionIdentity();
         $('#login-button').prop('disabled', false).text('Iniciar sesión');
         $('#login-gate').prop('hidden', false);
         if (message) {
@@ -459,7 +545,10 @@
                 domain: config.domain,
                 clientId: config.clientId,
                 cacheLocation: 'localstorage',
-                authorizationParams: { redirect_uri: window.location.origin }
+                authorizationParams: {
+                    redirect_uri: window.location.origin,
+                    scope: 'openid profile email'
+                }
             }).then(function (client) {
                 var handled = Promise.resolve();
                 if (params.has('code') && params.has('state')) {
@@ -477,8 +566,7 @@
                     }
                     return client.getUser().then(function (user) {
                         return client.getIdTokenClaims().then(function (claims) {
-                            var label = (user && (user.name || user.email)) || 'Usuario';
-                            $('#session-name').text('Sesión de ' + label);
+                            var label = showSessionIdentity(user);
                             $('#nombre').val(label).prop('readonly', true);
                             $('#session-bar').prop('hidden', false);
                             $('#login-gate').prop('hidden', true);

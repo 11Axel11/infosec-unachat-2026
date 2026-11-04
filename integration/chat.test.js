@@ -77,6 +77,9 @@ describe('Chat server', function () {
       expect(response.status).toBe(200);
       expect(html).toContain('Chat Socket.IO UNA');
       expect(html).toContain('id="messages"');
+      expect(html).toContain('id="session-photo"');
+      expect(html).toContain('id="session-email"');
+      expect(html).toContain('src="/profile.js"');
     });
   });
 
