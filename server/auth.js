@@ -14,6 +14,7 @@ var TXN_COOKIE = 'una_chat_oauth';
 
 var authClient = null;
 var txnKey = null;
+var clientSecretValue = null;
 var jwtMiddleware = null;
 var ready = false;
 
@@ -71,6 +72,7 @@ function initAuth0(clientSecret) {
     }
   });
   txnKey = crypto.createHmac('sha256', clientSecret).update('una-chat-oauth-txn-v1').digest();
+  clientSecretValue = clientSecret;
 
   return probeClientSecret(clientSecret).then(function () {
     verifier();
@@ -254,25 +256,58 @@ function finishLogin(req, res) {
     return;
   }
 
-  var url = new URL(callbackUrl());
-  url.searchParams.set('code', code);
-  url.searchParams.set('state', state);
-  authClient.getTokenByCode(url, { codeVerifier: txn.verifier }).then(function (tokens) {
-    var idToken = tokens && tokens.idToken;
-    var claims = tokens && tokens.claims;
-    if (typeof idToken !== 'string' || !claims || !sameString(claims.nonce, txn.nonce)) {
-      res.redirect('/?error=login_failed');
-      return;
-    }
-    var lifetime = 60 * 60 * 8 * 1000;
-    if (typeof claims.exp === 'number') {
-      lifetime = Math.max(60 * 1000, (claims.exp * 1000) - Date.now());
-    }
-    res.cookie(ID_COOKIE, idToken, cookieOptions(lifetime));
-    res.redirect('/');
+  exchangeAuthorizationCode(code, txn.verifier).then(function (idToken) {
+    return verifyToken(idToken).then(function (claims) {
+      if (!claims || !sameString(claims.nonce, txn.nonce)) {
+        res.redirect('/?error=login_failed');
+        return;
+      }
+      var lifetime = 60 * 60 * 8 * 1000;
+      if (typeof claims.exp === 'number') {
+        lifetime = Math.max(60 * 1000, (claims.exp * 1000) - Date.now());
+      }
+      res.cookie(ID_COOKIE, idToken, cookieOptions(lifetime));
+      res.redirect('/');
+    });
   }).catch(function (err) {
-    console.error('Auth0 code exchange failed:', oauthErrorCode(err));
+    var codeName = err && typeof err.code === 'string' ? err.code : '';
+    if (KNOWN_OAUTH_ERRORS.indexOf(codeName) === -1 && codeName !== 'invalid_id_token') codeName = 'unknown';
+    console.error('Auth0 code exchange failed:', codeName);
     res.redirect('/?error=login_failed');
+  });
+}
+
+function exchangeAuthorizationCode(code, verifier) {
+  var settings = authSettings();
+  var body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: settings.clientId,
+    client_secret: clientSecretValue,
+    code: code,
+    redirect_uri: callbackUrl(),
+    code_verifier: verifier
+  });
+  return fetch('https://' + settings.domain + '/oauth/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: body
+  }).then(function (res) {
+    return res.text().then(function (text) {
+      var payload = {};
+      try {
+        payload = JSON.parse(text);
+      } catch (e) {
+        payload = {};
+      }
+      if (!res.ok || typeof payload.id_token !== 'string') {
+        var oauth = payload && typeof payload.error === 'string' ? payload.error : '';
+        if (KNOWN_OAUTH_ERRORS.indexOf(oauth) === -1) oauth = 'unknown';
+        var err = new Error('Auth0 code exchange failed.');
+        err.code = oauth;
+        throw err;
+      }
+      return payload.id_token;
+    });
   });
 }
 
