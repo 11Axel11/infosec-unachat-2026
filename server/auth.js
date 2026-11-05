@@ -210,11 +210,13 @@ function beginLogin(req, res) {
     return;
   }
   var nonce = crypto.randomBytes(16).toString('hex');
+  var state = crypto.randomBytes(32).toString('base64url');
   authClient.buildAuthorizationUrl({
     authorizationParams: {
       redirect_uri: callbackUrl(),
       scope: 'openid profile email',
-      nonce: nonce
+      nonce: nonce,
+      state: state
     }
   }).then(function (result) {
     var state = result.authorizationUrl.searchParams.get('state') || '';
