@@ -86,7 +86,9 @@ function boot() {
   }
   return vault.loadAuth0ClientSecret().then(function (secret) {
     return authGate.initAuth0(secret).catch(function (err) {
-      throw new Error(vault.redact(err && err.message, secret));
+      var message = err && err.message ? String(err.message) : '';
+      if (message.indexOf('Auth0 ') === 0 && message.length < 120) throw new Error(message);
+      throw new Error(vault.redact(message, secret));
     });
   });
 }

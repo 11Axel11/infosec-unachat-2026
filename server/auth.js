@@ -72,29 +72,34 @@ function initAuth0(clientSecret) {
   });
   txnKey = crypto.createHmac('sha256', clientSecret).update('una-chat-oauth-txn-v1').digest();
 
-  return probeClientSecret().then(function () {
+  return probeClientSecret(clientSecret).then(function () {
     verifier();
     ready = true;
   });
 }
 
-function probeClientSecret() {
-  var url = new URL(callbackUrl());
-  url.searchParams.set('code', 'vault-startup-probe');
-  url.searchParams.set('state', 'vault-startup-probe');
-  return authClient.getTokenByCode(url, {
-    codeVerifier: crypto.randomBytes(32).toString('base64url')
-  }).then(function () {
-    return 'accepted_code';
-  }, function (err) {
-    return oauthErrorCode(err);
-  }).then(function (code) {
+function probeClientSecret(clientSecret) {
+  var settings = authSettings();
+  var body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: settings.clientId,
+    client_secret: clientSecret,
+    code: 'vault-startup-probe',
+    redirect_uri: callbackUrl(),
+    code_verifier: crypto.randomBytes(32).toString('base64url')
+  });
+  return fetch('https://' + settings.domain + '/oauth/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: body
+  }).then(function (res) {
+    return res.json().catch(function () { return {}; });
+  }).then(function (payload) {
+    var code = payload && typeof payload.error === 'string' ? payload.error : '';
+    if (KNOWN_OAUTH_ERRORS.indexOf(code) === -1) code = 'unknown';
     if (code === 'invalid_grant') return;
     if (code === 'invalid_client' || code === 'unauthorized_client' || code === 'access_denied') {
       throw new Error('Auth0 rejected the client secret.');
-    }
-    if (code === 'accepted_code') {
-      throw new Error('Auth0 accepted the startup probe. Refusing to start.');
     }
     throw new Error('Auth0 did not accept the client secret (' + code + ').');
   });

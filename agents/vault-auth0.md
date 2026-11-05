@@ -6,6 +6,6 @@ El rol de la conexión es `una_chat_backend`. Solo puede ejecutar `una_chat_priv
 
 `pg` conecta con `rejectUnauthorized: true` y confía además en `server/supabase-root-2021-ca.pem`, la raíz pública del pooler. El host directo `db.PROJECT_REF.supabase.co` es IPv6. En una red solo IPv4 se usa el session pooler, con el usuario `una_chat_backend.PROJECT_REF`. Una URI de ejemplo, sin clave, está en `.env.example`. `AUTH0_CLIENT_SECRET` en el entorno se ignora y se avisa por ese nombre, nunca por su valor.
 
-El SDK es `@auth0/auth0-auth-js`. Antes de escuchar, un código falso contra el token endpoint debe responder `invalid_grant`: el secreto fue aceptado y el código no. `invalid_client` detiene el arranque. El log guarda solo ese código, de una lista fija.
+El SDK es `@auth0/auth0-auth-js`. Antes de escuchar, el proceso hace un POST directo al token endpoint con un código falso. Auth0 responde `403` e `invalid_grant` cuando el secreto es válido; el SDK trata ese `403` como respuesta inválida, por eso la prueba no usa `getTokenByCode`. `invalid_client` detiene el arranque. El log no incluye el secreto.
 
 La aplicación de Auth0 es confidencial, con `client_secret_post`. El callback es `{APP_BASE_URL}/auth/callback`. `/sala` exige la cookie httpOnly del ID token. Sin las variables de Auth0, `server.js` no abre Vault y las pruebas siguen con el chat abierto. Node 20 o superior.
