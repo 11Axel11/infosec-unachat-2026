@@ -6,7 +6,7 @@ Tres suites, cada una en su carpeta para que no se pisen:
 
 | Comando | Qué corre |
 |---|---|
-| `npm test` | Mocha BDD en `test/test.js` (Chai `expect`) |
+| `npm test` | Mocha BDD en `test/*.js` (Chai `expect`) |
 | `npm run test:integration` | Jest en `integration/**/*.test.js` |
 | `npm run test:e2e` | Playwright en `e2e/`, Chromium visible, `slowMo: 1000` |
 

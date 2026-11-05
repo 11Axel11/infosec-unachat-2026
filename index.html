@@ -393,7 +393,6 @@
       <button type="submit">Send</button>
     </form>
     <script src="/profile.js"></script>
-    <script src="/vendor/auth0-spa-js.js"></script>
     <script src="https://cdn.socket.io/4.8.4/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
     <script>
@@ -506,23 +505,33 @@
         if (code === 'access_denied') {
             return 'Cancelaste el inicio de sesión. Puedes intentarlo de nuevo.';
         }
-        var detail = params.get('error_description') || '';
-        return detail
-            ? 'No se pudo iniciar sesión. ' + detail
-            : 'No se pudo iniciar sesión. Inténtalo de nuevo.';
+        if (code === 'state') {
+            return 'La sesión de entrada venció. Inténtalo de nuevo.';
+        }
+        return 'No se pudo iniciar sesión. Inténtalo de nuevo.';
     }
 
-    function bindLogin(client) {
+    function bindLogin() {
         $('#login-button').off('click').on('click', function () {
-            var button = this;
-            button.disabled = true;
-            button.textContent = 'Entrando…';
-            client.loginWithRedirect().catch(function () {
-                button.disabled = false;
-                button.textContent = 'Iniciar sesión';
-                $('#login-error').prop('hidden', false).text('No se pudo abrir el inicio de sesión. Inténtalo de nuevo.');
-            });
+            this.disabled = true;
+            this.textContent = 'Entrando…';
+            window.location.assign('/auth/login');
         });
+    }
+
+    function showSignedIn(user) {
+        var label = showSessionIdentity(user);
+        $('#nombre').val(label).prop('readonly', true);
+        $('#session-bar').prop('hidden', false);
+        $('#login-gate').prop('hidden', true);
+        $('#logout-button').on('click', function () {
+            var button = this;
+            var text = button.querySelector('span');
+            button.disabled = true;
+            if (text) text.textContent = 'Cerrando sesión…';
+            window.location.assign('/auth/logout');
+        });
+        startChat();
     }
 
     $(function () {
@@ -533,67 +542,27 @@
                 startChat();
                 return;
             }
-            if (!window.auth0 || !window.auth0.createAuth0Client) {
-                showLogin('No se pudo cargar el inicio de sesión. Recarga la página.');
-                return;
-            }
 
             var params = new URLSearchParams(window.location.search);
             var redirectError = loginErrorFromParams(params);
+            if (params.has('error') || params.has('code') || params.has('state')) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
 
-            return window.auth0.createAuth0Client({
-                domain: config.domain,
-                clientId: config.clientId,
-                cacheLocation: 'localstorage',
-                authorizationParams: {
-                    redirect_uri: window.location.origin,
-                    scope: 'openid profile email'
+            return fetch('/sala', { headers: { accept: 'application/json' } }).then(function (response) {
+                if (response.status === 401) {
+                    showLogin(redirectError);
+                    bindLogin();
+                    return;
                 }
-            }).then(function (client) {
-                var handled = Promise.resolve();
-                if (params.has('code') && params.has('state')) {
-                    handled = client.handleRedirectCallback().then(function () {
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                    });
+                if (!response.ok) {
+                    showLogin('No se pudo comprobar la sesión. Recarga la página.');
+                    bindLogin();
+                    return;
                 }
-                return handled.then(function () {
-                    return client.isAuthenticated();
-                }).then(function (isAuthenticated) {
-                    if (!isAuthenticated) {
-                        showLogin(redirectError);
-                        bindLogin(client);
-                        return;
-                    }
-                    return client.getUser().then(function (user) {
-                        return client.getIdTokenClaims().then(function (claims) {
-                            var label = showSessionIdentity(user);
-                            $('#nombre').val(label).prop('readonly', true);
-                            $('#session-bar').prop('hidden', false);
-                            $('#login-gate').prop('hidden', true);
-                            $('#logout-button').on('click', function () {
-                                var button = this;
-                                var label = button.querySelector('span');
-                                button.disabled = true;
-                                if (label) label.textContent = 'Cerrando sesión…';
-                                client.logout({ logoutParams: { returnTo: window.location.origin } }).catch(function () {
-                                    button.disabled = false;
-                                    if (label) label.textContent = 'Cerrar sesión';
-                                });
-                            });
-                            if (!claims || !claims.__raw) {
-                                showLogin('No se pudo leer la sesión. Inicia sesión de nuevo.');
-                                bindLogin(client);
-                                return;
-                            }
-                            startChat(claims.__raw);
-                        });
-                    });
+                return response.json().then(function (user) {
+                    showSignedIn(user);
                 });
-            }).catch(function (error) {
-                var detail = error && (error.error_description || error.message);
-                showLogin(detail
-                    ? 'No se pudo iniciar sesión. ' + detail
-                    : 'No se pudo iniciar sesión. Inténtalo de nuevo.');
             });
         }).catch(function () {
             showLogin('No se pudo comprobar la sesión. Recarga la página.');

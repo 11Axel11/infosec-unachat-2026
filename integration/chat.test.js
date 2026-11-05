@@ -66,6 +66,13 @@ describe('Chat server', function () {
 
       expect(response.status).toBe(200);
       expect(body).toEqual({ enabled: false });
+      expect(body.clientSecret).toBeUndefined();
+      expect(JSON.stringify(body)).not.toContain('secret');
+
+      var sala = await fetch('http://127.0.0.1:' + port + '/sala');
+      var salaBody = await sala.json();
+      expect(sala.status).toBe(200);
+      expect(salaBody).toEqual({ enabled: false });
     });
   });
 

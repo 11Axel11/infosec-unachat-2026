@@ -17,4 +17,5 @@ No agregues notas de una sola sesión, secretos ni consejos genéricos. Si una r
 - Vas a tocar `libs/unalib.js`, el evento del chat o el JSON del mensaje: [agents/validacion.md](agents/validacion.md)
 - Vas a correr o cambiar pruebas, `server.js` o selectores de la página: [agents/pruebas.md](agents/pruebas.md)
 - Vas a cambiar dependencias, `package.json`, el CDN de Socket.IO o Snyk: [agents/dependencias.md](agents/dependencias.md)
+- Vas a tocar Vault, `VAULT_DATABASE_URL` o el Client Secret de Auth0: [agents/vault-auth0.md](agents/vault-auth0.md)
 - Vas a cambiar `index.html`, el spec de la página o un cambio de OpenSpec: [agents/interfaz-y-specs.md](agents/interfaz-y-specs.md)
