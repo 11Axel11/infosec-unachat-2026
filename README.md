@@ -41,3 +41,7 @@ npm start
 ```
 
 Abre http://localhost:3000. `npm test` y `npm run test:integration` no deben ver un `.env` con Auth0, o el chat les pedirá token.
+
+## Despliegue del laboratorio
+
+Aplicación desplegada en Render mediante GitHub Actions.
