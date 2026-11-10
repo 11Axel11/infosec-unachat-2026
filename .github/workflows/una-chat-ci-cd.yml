@@ -1,3 +1,4 @@
+
 name: Desplegar chat en Render
 
 on:
@@ -8,16 +9,34 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    name: Ejecutar pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar pruebas
+        run: npm test
+
   deploy:
+    name: Desplegar en Render
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Solicitar despliegue
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          # Do not send ref=$GITHUB_SHA. Render answers 404 when that
-          # commit is not in the service's linked repository, and a
-          # pinned ref also disables automatic deploys.
           curl --fail --silent --show-error \
             --request POST \
             "$RENDER_DEPLOY_HOOK_URL"
