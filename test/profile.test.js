@@ -5,7 +5,7 @@ describe('google profile picture', function () {
 
   it('should keep an https picture hosted on Google', function () {
     var picture = 'https://lh3.googleusercontent.com/a/abc=s96-c';
-    expect(profile.googleProfilePicture(picture)).to.equal('resultado-incorrecto');
+    expect(profile.googleProfilePicture(picture)).to.equal(picture);
   });
 
   it('should reject a picture that is not served by Google', function () {
