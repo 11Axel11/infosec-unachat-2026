@@ -1,4 +1,6 @@
+
 require('dotenv').config({ quiet: true });
+require('./instrument');
 
 var path = require('path');
 var express = require('express');
@@ -15,6 +17,23 @@ var port = process.env.PORT || 3000;
 app.get('/', function (req, res) {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
+
+// Ruta temporal para verificar Sentry - Laboratorio #7
+if (process.env.VERCEL && process.env.SENTRY_DSN) {
+  app.get('/debug-sentry', async function (req, res) {
+    const Sentry = require('@sentry/node');
+
+    Sentry.captureException(
+      new Error('Error de prueba - Laboratorio 7')
+    );
+
+    await Sentry.flush(2000);
+
+    res.status(500).json({
+      error: 'Error controlado registrado en Sentry'
+    });
+  });
+}
 
 app.get('/auth/config', function (req, res) {
   var settings = authGate.authSettings();
@@ -74,6 +93,7 @@ io.on('connection', function (socket) {
     if (socket.data && socket.data.user && socket.data.user.name) {
       msg = authGate.stampSender(msg, socket.data.user.name);
     }
+
     msg = validation.validateMessage(msg);
     io.emit('Evento-Mensaje-Server', msg);
   });
@@ -81,13 +101,21 @@ io.on('connection', function (socket) {
 
 function boot() {
   if (!authGate.authSettings()) return Promise.resolve();
+
   if (process.env.AUTH0_CLIENT_SECRET) {
-    console.warn('AUTH0_CLIENT_SECRET is set and is ignored. The client secret is loaded from Supabase Vault.');
+    console.warn(
+      'AUTH0_CLIENT_SECRET is set and is ignored. The client secret is loaded from Supabase Vault.'
+    );
   }
+
   return vault.loadAuth0ClientSecret().then(function (secret) {
     return authGate.initAuth0(secret).catch(function (err) {
       var message = err && err.message ? String(err.message) : '';
-      if (message.indexOf('Auth0 ') === 0 && message.length < 120) throw new Error(message);
+
+      if (message.indexOf('Auth0 ') === 0 && message.length < 120) {
+        throw new Error(message);
+      }
+
       throw new Error(vault.redact(message, secret));
     });
   });
@@ -99,7 +127,9 @@ if (require.main === module) {
       console.log('listening on *:' + port);
     });
   }).catch(function (err) {
-    console.error(err && err.message ? err.message : 'Auth0 startup failed.');
+    console.error(
+      err && err.message ? err.message : 'Auth0 startup failed.'
+    );
     process.exit(1);
   });
 }
