@@ -1,0 +1,21 @@
+
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 20
+      arrivalRate: 2
+      name: "Carga inicial"
+    - duration: 20
+      arrivalRate: 5
+      name: "Carga moderada"
+    - duration: 20
+      arrivalRate: 10
+      name: "Carga alta"
+
+scenarios:
+  - name: "Consultar UNA Chat"
+    flow:
+      - get:
+          url: "/"
+      - get:
+          url: "/auth/config"
