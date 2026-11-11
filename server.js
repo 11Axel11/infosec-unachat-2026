@@ -18,23 +18,6 @@ app.get('/', function (req, res) {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Ruta temporal para verificar Sentry - Laboratorio #7
-if (process.env.VERCEL && process.env.SENTRY_DSN) {
-  app.get('/debug-sentry', async function (req, res) {
-    const Sentry = require('@sentry/node');
-
-    Sentry.captureException(
-      new Error('Error de prueba - Laboratorio 7')
-    );
-
-    await Sentry.flush(2000);
-
-    res.status(500).json({
-      error: 'Error controlado registrado en Sentry'
-    });
-  });
-}
-
 app.get('/auth/config', function (req, res) {
   var settings = authGate.authSettings();
   if (!settings) {
